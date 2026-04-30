@@ -12,6 +12,13 @@ type Route =
   | { kind: 'home' }
   | { kind: 'chat'; topic: string; sessionId: string; resume: SavedChatSession | null }
 
+/** 非 HTTPS（如 http://域名）下无 secure context，`crypto.randomUUID` 不可用，需回退 */
+function newSessionId() {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `s-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+}
+
 export default function App() {
   const [route, setRoute] = useState<Route>({ kind: 'home' })
   const [, setListVersion] = useState(0)
@@ -29,7 +36,7 @@ export default function App() {
             setRoute({
               kind: 'chat',
               topic: t,
-              sessionId: crypto.randomUUID(),
+              sessionId: newSessionId(),
               resume: null,
             })
           }}
