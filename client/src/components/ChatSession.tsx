@@ -28,9 +28,9 @@ function PhaseBadge({
     sub = '点「整理大纲」或说出这四个字'
   }
   return (
-    <div className="rounded-full border border-stone-200 bg-white/90 px-3 py-1 text-left text-xs dark:border-stone-600 dark:bg-stone-900/90">
+    <div className="max-w-[min(100%,14rem)] shrink-0 rounded-full border border-stone-200 bg-white/90 px-2.5 py-1 text-left text-xs sm:max-w-none sm:px-3 dark:border-stone-600 dark:bg-stone-900/90">
       <span className="font-semibold text-stone-800 dark:text-stone-100">{label}</span>
-      <span className="text-stone-500"> · {sub}</span>
+      <span className="hidden text-stone-500 sm:inline"> · {sub}</span>
     </div>
   )
 }
@@ -356,16 +356,16 @@ export function ChatSession({
 
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-stone-100 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-100/95 px-4 py-3 backdrop-blur dark:border-stone-800 dark:bg-stone-950/95">
+      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-100/95 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3 dark:border-stone-800 dark:bg-stone-950/95">
         <div className="min-w-0 text-left">
           <button
             type="button"
             onClick={handleBack}
-            className="rounded-xl px-2 py-1 text-sm font-medium text-stone-700 hover:bg-stone-200 dark:text-stone-200 dark:hover:bg-stone-800"
+            className="touch-manipulation rounded-xl px-2 py-1 text-sm font-medium text-stone-700 hover:bg-stone-200 dark:text-stone-200 dark:hover:bg-stone-800"
           >
             ← 保存并返回
           </button>
-          <p className="px-2 text-[10px] leading-snug text-stone-500 dark:text-stone-400">
+          <p className="hidden px-2 text-[10px] leading-snug text-stone-500 sm:block dark:text-stone-400">
             对话会保存在本机，下次可从首页继续
           </p>
         </div>
@@ -376,13 +376,13 @@ export function ChatSession({
         />
       </header>
 
-      <div className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-2 lg:items-stretch">
+      <div className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 gap-2 overflow-hidden p-2 sm:gap-4 sm:p-4 lg:grid-cols-2 lg:items-stretch">
         <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">
-          <div className="border-b border-stone-100 px-4 py-3 text-left dark:border-stone-800">
-            <p className="text-xs font-medium uppercase tracking-wider text-amber-700 dark:text-amber-400">
+          <div className="shrink-0 border-b border-stone-100 px-3 py-2.5 text-left sm:px-4 sm:py-3 dark:border-stone-800">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-amber-700 sm:text-xs dark:text-amber-400">
               题目
             </p>
-            <p className="font-display text-lg font-semibold">{topic}</p>
+            <p className="font-display text-base font-semibold leading-snug sm:text-lg">{topic}</p>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
@@ -423,43 +423,41 @@ export function ChatSession({
             </div>
 
             {!outlineMode ? (
-              <div className="shrink-0 border-t border-stone-100 p-3 dark:border-stone-800">
-                {(showSuggestCta || canManualFocus) && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {showSuggestCta ? (
+              <div className="shrink-0 border-t border-stone-100 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-stone-800 dark:bg-stone-900">
+                {(showSuggestCta || canManualFocus || focusChosen) && (
+                  <div className="mb-3 flex flex-col gap-2">
+                    {focusChosen ? (
+                      <button
+                        type="button"
+                        onClick={() => void loadCapsules(messages)}
+                        disabled={loading}
+                        className="min-h-[44px] w-full touch-manipulation rounded-xl border-2 border-amber-400 bg-amber-50 py-2.5 text-sm font-bold text-amber-900 disabled:opacity-50 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100"
+                      >
+                        整理大纲
+                      </button>
+                    ) : showSuggestCta ? (
                       <button
                         type="button"
                         onClick={() => void triggerFocusPrompt()}
                         disabled={loading}
-                        className="rounded-xl bg-stone-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 dark:bg-amber-500 dark:text-stone-900"
+                        className="min-h-[44px] w-full touch-manipulation rounded-xl bg-stone-900 py-2.5 text-sm font-bold text-white disabled:opacity-50 dark:bg-amber-500 dark:text-stone-900"
                       >
                         好，梳理重点
                       </button>
-                    ) : null}
-                    {canManualFocus && !showSuggestCta ? (
+                    ) : canManualFocus ? (
                       <button
                         type="button"
                         onClick={() => void triggerFocusPrompt()}
                         disabled={loading}
-                        className="rounded-xl border border-stone-300 px-3 py-2 text-xs font-medium text-stone-700 dark:border-stone-600 dark:text-stone-200"
+                        className="min-h-[44px] w-full touch-manipulation rounded-xl border border-stone-300 bg-stone-50 py-2.5 text-sm font-semibold text-stone-800 disabled:opacity-50 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
                       >
                         聊够了，梳理重点
                       </button>
                     ) : null}
                   </div>
                 )}
-                {focusChosen ? (
-                  <button
-                    type="button"
-                    onClick={() => void loadCapsules(messages)}
-                    disabled={loading}
-                    className="mb-2 w-full rounded-xl border-2 border-dashed border-amber-400/80 py-2 text-sm font-semibold text-amber-800 dark:text-amber-200"
-                  >
-                    整理大纲
-                  </button>
-                ) : null}
 
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-end">
                   <textarea
                     value={displayInput}
                     readOnly={listening}
@@ -480,14 +478,14 @@ export function ChatSession({
                         ? '有遗漏就先补充细节；没有则用编号多选，如 1、3'
                         : '打字或先用语音…'
                     }
-                    className="min-h-[48px] flex-1 resize-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-950 read-only:opacity-95"
+                    className="min-h-[48px] w-full flex-1 resize-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-stone-700 dark:bg-stone-950 read-only:opacity-95 sm:text-sm"
                   />
-                  <div className="flex shrink-0 flex-col gap-1">
+                  <div className="flex shrink-0 gap-2 lg:w-auto lg:flex-col">
                     {supported ? (
                       <button
                         type="button"
                         onClick={() => (listening ? cancel() : void onMic())}
-                        className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                        className={`min-h-[44px] flex-1 touch-manipulation rounded-xl px-4 py-2.5 text-sm font-semibold lg:flex-none ${
                           listening
                             ? 'bg-rose-500 text-white'
                             : 'bg-stone-200 text-stone-800 dark:bg-stone-800 dark:text-stone-100'
@@ -500,18 +498,18 @@ export function ChatSession({
                       type="button"
                       onClick={() => void sendFromInput()}
                       disabled={loading || listening || !displayInput.trim()}
-                      className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-stone-900 disabled:opacity-40"
+                      className="min-h-[44px] flex-1 touch-manipulation rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-stone-900 disabled:opacity-40 lg:flex-none"
                     >
                       发送
                     </button>
                   </div>
                 </div>
                 {supported ? (
-                  <p className="mt-1 text-[10px] text-stone-400">
+                  <p className="mt-1.5 hidden text-[10px] text-stone-400 sm:block">
                     说话时识别文字会同步出现在输入框；可连续说多句，点「完成」结束。
                   </p>
                 ) : (
-                  <p className="mt-1 text-[10px] text-stone-400">
+                  <p className="mt-1.5 text-[10px] text-stone-400">
                     当前浏览器不支持语音，可直接打字。
                   </p>
                 )}
