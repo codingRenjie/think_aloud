@@ -61,16 +61,26 @@ export function ChatSession({
   )
   const [input, setInput] = useState('')
 
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
   /** 点「语音」那一刻输入框里已有的字，与 live 识别结果拼接展示 */
   const micPrefixRef = useRef('')
+
+  function scrollMessagesToBottom(behavior: ScrollBehavior = 'smooth') {
+    const el = messagesScrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
+  }
   const { supported, listening, liveTranscript, listenOnce, cancel } = useSpeechRecognition()
 
   const displayInput =
     listening && supported ? `${micPrefixRef.current}${liveTranscript}` : input
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const behavior: ScrollBehavior = messages.length <= 1 ? 'auto' : 'smooth'
+    const id = requestAnimationFrame(() => {
+      scrollMessagesToBottom(behavior)
+    })
+    return () => cancelAnimationFrame(id)
   }, [messages, loading, outlineMode])
 
   useEffect(() => {
@@ -345,15 +355,20 @@ export function ChatSession({
   const canManualFocus = userTurnCount >= 2 && !awaitingFocusPick && !focusChosen && !outlineMode
 
   return (
-    <div className="flex min-h-svh flex-col bg-stone-100 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
+    <div className="flex h-svh flex-col overflow-hidden bg-stone-100 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
       <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 bg-stone-100/95 px-4 py-3 backdrop-blur dark:border-stone-800 dark:bg-stone-950/95">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="rounded-xl px-2 py-1 text-sm text-stone-600 hover:bg-stone-200 dark:text-stone-400 dark:hover:bg-stone-800"
-        >
-          ← 结束
-        </button>
+        <div className="min-w-0 text-left">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="rounded-xl px-2 py-1 text-sm font-medium text-stone-700 hover:bg-stone-200 dark:text-stone-200 dark:hover:bg-stone-800"
+          >
+            ← 保存并返回
+          </button>
+          <p className="px-2 text-[10px] leading-snug text-stone-500 dark:text-stone-400">
+            对话会保存在本机，下次可从首页继续
+          </p>
+        </div>
         <PhaseBadge
           outlineMode={outlineMode}
           focusChosen={focusChosen}
@@ -361,8 +376,8 @@ export function ChatSession({
         />
       </header>
 
-      <div className="mx-auto grid w-full max-w-6xl flex-1 gap-4 p-4 lg:grid-cols-2 lg:items-stretch">
-        <div className="flex min-h-[50vh] flex-col rounded-2xl border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">
+      <div className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-2 lg:items-stretch">
+        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">
           <div className="border-b border-stone-100 px-4 py-3 text-left dark:border-stone-800">
             <p className="text-xs font-medium uppercase tracking-wider text-amber-700 dark:text-amber-400">
               题目
@@ -371,7 +386,10 @@ export function ChatSession({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            <div
+              ref={messagesScrollRef}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
+            >
               {error ? (
                 <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
                   {error}
@@ -402,14 +420,10 @@ export function ChatSession({
                   </div>
                 </div>
               ))}
-              {loading ? (
-                <p className="text-center text-xs text-stone-400">伙伴正在想…</p>
-              ) : null}
-              <div ref={bottomRef} />
             </div>
 
             {!outlineMode ? (
-              <div className="border-t border-stone-100 p-3 dark:border-stone-800">
+              <div className="shrink-0 border-t border-stone-100 p-3 dark:border-stone-800">
                 {(showSuggestCta || canManualFocus) && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {showSuggestCta ? (
@@ -510,7 +524,13 @@ export function ChatSession({
           </div>
         </div>
 
-        <div className="min-h-[40vh] lg:min-h-0">
+        <div
+          className={
+            outlineMode
+              ? 'flex min-h-0 flex-1 flex-col lg:min-h-0'
+              : 'hidden min-h-0 flex-1 flex-col lg:flex lg:min-h-0'
+          }
+        >
           {outlineMode ? (
             <CapsuleBoard
               topic={topic}
@@ -518,7 +538,7 @@ export function ChatSession({
               onChange={setCapsules}
             />
           ) : (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-6 text-center text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-900/30 dark:text-stone-400">
+            <div className="flex h-full min-h-0 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-6 text-center text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-900/30 dark:text-stone-400">
               多选编号并确认后，点「整理大纲」或说出「整理大纲」，这里会出现可拖动排序的胶囊。
             </div>
           )}
