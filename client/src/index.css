@@ -1,13 +1,41 @@
 @import 'tailwindcss';
 
+/* 思源柔黑（资源圆体 CN 子集，自托管） */
+@font-face {
+  font-family: 'Source Han Sans Rounded';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/ResourceHanRoundedCN-Regular.woff2') format('woff2');
+}
+
 @theme {
-  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Source Han Sans Rounded', ui-sans-serif, system-ui, sans-serif;
+  --font-playful: 'ZCOOL KuaiLe', ui-sans-serif, sans-serif;
+
+  /* 鸭子品牌色：背景奶油 + 鸭嘴橙 + 鸭脚绿 */
+  --color-ta-bg: #f9f7eb;
+  --color-ta-surface: #ffffff;
+  --color-ta-muted: #f3f1e4;
+  --color-ta-border: #e5e2d4;
+  --color-ta-orange: #f7941d;
+  --color-ta-orange-hover: #e88510;
+  --color-ta-green: #1f6b42;
+  --color-ta-green-soft: #e8f5ec;
+  --color-ta-ink: #1c1917;
+  --color-ta-ink-muted: #57534e;
+
+  /* 兼容聊天页等已有 token */
+  --color-ta-accent: #f7941d;
+  --color-ta-accent-hover: #e88510;
 }
 
 body {
   margin: 0;
   min-height: 100svh;
+  background-color: var(--color-ta-bg);
+  color: var(--color-ta-ink);
+  font-family: var(--font-sans);
 }
 
 #root {
