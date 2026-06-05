@@ -4,6 +4,7 @@ import {
   type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -38,6 +39,30 @@ function ensureTrailingBlank(capsules: Capsule[]): Capsule[] {
   return [...capsules, createEmptyCapsule()]
 }
 
+function DragHandle({
+  attributes,
+  listeners,
+}: {
+  attributes: ReturnType<typeof useSortable>['attributes']
+  listeners: ReturnType<typeof useSortable>['listeners']
+}) {
+  return (
+    <button
+      type="button"
+      className="-ml-1 flex min-h-11 min-w-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-xl text-stone-400 active:cursor-grabbing active:bg-ta-muted"
+      aria-label="拖动排序"
+      {...attributes}
+      {...listeners}
+    >
+      <span className="flex flex-col gap-[3px]" aria-hidden>
+        <span className="block h-0.5 w-[18px] rounded-full bg-current opacity-70" />
+        <span className="block h-0.5 w-[18px] rounded-full bg-current opacity-70" />
+        <span className="block h-0.5 w-[18px] rounded-full bg-current opacity-70" />
+      </span>
+    </button>
+  )
+}
+
 function SortableCapsule({
   capsule,
   onRemove,
@@ -59,37 +84,36 @@ function SortableCapsule({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex touch-none items-center gap-2 rounded-2xl border px-3 py-2 ${
+      className={`flex touch-pan-y items-center gap-1 rounded-2xl border px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2 ${
         isBlank
-          ? 'border-dashed border-ta-border bg-ta-bg/80'
-          : 'border-ta-border bg-ta-surface shadow-sm shadow-stone-200/40'
-      } ${isDragging ? 'z-10 opacity-90 ring-2 ring-amber-400/60' : ''}`}
+          ? 'border-2 border-dashed border-ta-border/90 bg-ta-muted/60'
+          : 'border border-ta-green/30 border-l-[3px] border-l-ta-green bg-ta-surface shadow-sm shadow-stone-200/40'
+      } ${isDragging ? 'z-10 opacity-90 ring-2 ring-ta-orange/50' : ''}`}
     >
-      <button
-        type="button"
-        className="cursor-grab touch-manipulation rounded-lg px-1.5 py-2 text-stone-400 active:cursor-grabbing"
-        aria-label="拖动排序"
-        {...attributes}
-        {...listeners}
-      >
-        ⋮⋮
-      </button>
+      <DragHandle attributes={attributes} listeners={listeners} />
       <input
         type="text"
         value={capsule.text}
         onChange={(e) => onUpdateText(capsule.id, e.target.value)}
-        placeholder="点击输入或补充一条…"
+        placeholder={isBlank ? '点这里补充一条…' : '点击修改文字'}
         maxLength={120}
-        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-left text-sm font-medium text-stone-800 outline-none ring-0 placeholder:text-stone-400 focus:ring-0"
+        className={`min-h-11 min-w-0 flex-1 touch-pan-y border-0 bg-transparent py-2 text-left text-base outline-none ring-0 focus:ring-0 sm:text-sm ${
+          isBlank
+            ? 'font-normal text-ta-ink-muted placeholder:text-ta-ink-muted/55'
+            : 'font-medium text-stone-800 placeholder:text-stone-400'
+        }`}
         aria-label="胶囊文字"
       />
-      <button
-        type="button"
-        onClick={() => onRemove(capsule.id)}
-        className="shrink-0 rounded-lg px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
-      >
-        删除
-      </button>
+      {!isBlank ? (
+        <button
+          type="button"
+          onClick={() => onRemove(capsule.id)}
+          className="flex min-h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center rounded-xl text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100"
+          aria-label="删除这条要点"
+        >
+          删除
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -104,7 +128,8 @@ export function CapsuleBoard({
   topic: string
 }) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const ids = useMemo(() => capsules.map((c) => c.id), [capsules])
@@ -126,6 +151,8 @@ export function CapsuleBoard({
   }
 
   function remove(id: string) {
+    const cap = capsules.find((c) => c.id === id)
+    if (cap?.text.trim() && !confirm('删掉这条大纲要点？')) return
     onChange(ensureTrailingBlank(capsules.filter((c) => c.id !== id)))
   }
 
@@ -134,35 +161,44 @@ export function CapsuleBoard({
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-2xl border border-ta-border bg-ta-surface p-4 shadow-sm shadow-stone-200/50">
+    <section className="flex min-w-0 flex-col rounded-2xl border border-ta-border bg-ta-surface p-4 shadow-sm shadow-stone-200/50">
       <h2 className="text-lg font-semibold text-stone-800">作文大纲</h2>
-      <p className="mt-1 text-xs text-ta-ink-muted">
+      <p className="mt-1 break-words text-xs leading-relaxed text-ta-ink-muted">
         题目：{topic}。点击文字直接改；拖动排序；末尾可补充新胶囊。这里不会生成整篇作文。
       </p>
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+      <div className="mt-4 touch-pan-y">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-            <ul className="flex flex-col gap-2">
-              {capsules.map((c, i) => (
-                <li key={c.id} className="flex items-start gap-2">
-                  <span className="mt-2 w-6 shrink-0 text-center text-xs tabular-nums text-stone-400">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <SortableCapsule capsule={c} onRemove={remove} onUpdateText={updateText} />
-                    {c.sourceSnippet ? (
-                      <p className="mt-1 line-clamp-2 pl-9 text-[11px] text-stone-400">
-                        依据：「{c.sourceSnippet}」
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+            <ul className="flex flex-col gap-3 pb-1">
+              {capsules.map((c, i) => {
+                const isBlank = c.text.trim() === ''
+                return (
+                  <li key={c.id} className="flex touch-pan-y items-start gap-2">
+                    <span
+                      className={`mt-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums ${
+                        isBlank
+                          ? 'bg-ta-muted text-stone-400'
+                          : 'bg-ta-green-soft text-ta-green'
+                      }`}
+                    >
+                      {isBlank ? '+' : i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <SortableCapsule capsule={c} onRemove={remove} onUpdateText={updateText} />
+                      {c.sourceSnippet ? (
+                        <p className="mt-1.5 line-clamp-2 pl-1 text-[11px] leading-snug text-ta-ink-muted">
+                          依据：「{c.sourceSnippet}」
+                        </p>
+                      ) : null}
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           </SortableContext>
         </DndContext>
       </div>
-      <p className="mt-4 border-t border-ta-border pt-3 text-xs text-ta-ink-muted">
+      <p className="mt-4 shrink-0 border-t border-ta-border pt-3 text-xs leading-relaxed break-words text-ta-ink-muted">
         接下来在作文本上<strong className="text-stone-700">自己写正文</strong>——可以照着胶囊顺序一段段展开。
       </p>
     </section>

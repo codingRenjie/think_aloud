@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Home } from './components/Home'
 import { ChatSession } from './components/ChatSession'
+import { OutlineSession } from './components/OutlineSession'
 import {
   deleteSession,
   getSession,
@@ -11,6 +12,7 @@ import {
 type Route =
   | { kind: 'home' }
   | { kind: 'chat'; topic: string; sessionId: string; resume: SavedChatSession | null }
+  | { kind: 'outline'; session: SavedChatSession }
 
 /** 非 HTTPS（如 http://域名）下无 secure context，`crypto.randomUUID` 不可用，需回退 */
 function newSessionId() {
@@ -47,18 +49,34 @@ export default function App() {
               refreshList()
               return
             }
-            setRoute({ kind: 'chat', topic: s.topic, sessionId: s.id, resume: s })
+            if (s.outlineMode) {
+              setRoute({ kind: 'outline', session: s })
+            } else {
+              setRoute({ kind: 'chat', topic: s.topic, sessionId: s.id, resume: s })
+            }
           }}
           onDeleteSession={(id) => {
             deleteSession(id)
             refreshList()
           }}
         />
-      ) : (
+      ) : route.kind === 'chat' ? (
         <ChatSession
           sessionId={route.sessionId}
           topic={route.topic}
           resumeFrom={route.resume}
+          onBack={() => {
+            setRoute({ kind: 'home' })
+            refreshList()
+          }}
+          onEnterOutline={(session) => {
+            setRoute({ kind: 'outline', session })
+            refreshList()
+          }}
+        />
+      ) : (
+        <OutlineSession
+          session={route.session}
           onBack={() => {
             setRoute({ kind: 'home' })
             refreshList()
