@@ -1,33 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { postChatStream, postCapsules, type ChatMessage } from '../lib/api'
+import { postChatStream, postCapsules, type ChatMessage, type Capsule } from '../lib/api'
 import { upsertSession, type SavedChatSession } from '../lib/sessionHistory'
 import { looksLikeFocusSelection } from '../lib/focusSelection'
 import { stripLeadingSuggestMeta } from '../lib/stripSuggestMeta'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
-
-function PhaseBadge({
-  focusChosen,
-  awaitingFocusPick,
-}: {
-  focusChosen: boolean
-  awaitingFocusPick: boolean
-}) {
-  let label = '发散聊聊'
-  let sub = '想到什么说什么'
-  if (awaitingFocusPick) {
-    label = '梳理重点'
-    sub = '可补充遗漏，或多选编号'
-  } else if (focusChosen) {
-    label = '准备大纲'
-    sub = '点「整理大纲」或说出这四个字'
-  }
-  return (
-    <div className="max-w-[min(100%,14rem)] shrink-0 rounded-full border border-ta-border bg-ta-surface px-2.5 py-1 text-left text-xs shadow-sm shadow-stone-200/50 sm:max-w-none sm:px-3">
-      <span className="font-semibold text-stone-800">{label}</span>
-      <span className="hidden text-ta-ink-muted sm:inline"> · {sub}</span>
-    </div>
-  )
-}
+import { SessionPhaseNav } from './SessionPhaseNav'
 
 export function ChatSession({
   topic,
@@ -51,6 +28,10 @@ export function ChatSession({
   )
   const [focusChosen, setFocusChosen] = useState(() => resumeFrom?.focusChosen ?? false)
   const [chosenFocus, setChosenFocus] = useState<string | undefined>(() => resumeFrom?.chosenFocus)
+  const [outlineGenerated, setOutlineGenerated] = useState(() => resumeFrom?.outlineMode ?? false)
+  const [savedCapsules, setSavedCapsules] = useState<Capsule[]>(
+    () => resumeFrom?.capsules?.map((c) => ({ ...c })) ?? [],
+  )
   const [input, setInput] = useState('')
 
   const messagesScrollRef = useRef<HTMLDivElement>(null)
@@ -77,8 +58,8 @@ export function ChatSession({
       awaitingFocusPick,
       focusChosen,
       chosenFocus,
-      outlineMode: false,
-      capsules: [],
+      outlineMode: outlineGenerated,
+      capsules: savedCapsules,
       ...overrides,
     }
   }
@@ -103,6 +84,8 @@ export function ChatSession({
     awaitingFocusPick,
     focusChosen,
     chosenFocus,
+    outlineGenerated,
+    savedCapsules,
   ])
 
   const resumeKey = resumeFrom?.id ?? ''
@@ -213,6 +196,8 @@ export function ChatSession({
         capsules: caps,
         updatedAt: Date.now(),
       })
+      setOutlineGenerated(true)
+      setSavedCapsules(caps.map((c) => ({ ...c })))
       upsertSession(session)
       onEnterOutline(session)
     } catch (e) {
@@ -341,13 +326,19 @@ export function ChatSession({
     }
   }
 
+  function goToOutline() {
+    const session = buildSession({ updatedAt: Date.now() })
+    upsertSession(session)
+    onEnterOutline(session)
+  }
+
   const showSuggestCta = suggestConverge && !awaitingFocusPick && !focusChosen
   const canManualFocus = userTurnCount >= 2 && !awaitingFocusPick && !focusChosen
 
   return (
-    <div className="flex h-svh min-w-0 flex-col overflow-hidden bg-ta-bg text-ta-ink">
-      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-ta-border bg-ta-bg/95 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3">
-        <div className="min-w-0 text-left">
+    <div className="fixed inset-0 flex min-w-0 flex-col overflow-hidden bg-ta-bg text-ta-ink">
+      <header className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-ta-border bg-ta-bg/95 px-3 py-2.5 backdrop-blur sm:flex-nowrap sm:px-4 sm:py-3">
+        <div className="min-w-0 flex-1 text-left">
           <button
             type="button"
             onClick={handleBack}
@@ -359,10 +350,15 @@ export function ChatSession({
             对话会保存在本机，下次可从首页继续
           </p>
         </div>
-        <PhaseBadge focusChosen={focusChosen} awaitingFocusPick={awaitingFocusPick} />
+        <SessionPhaseNav
+          active="chat"
+          outlineAvailable={outlineGenerated}
+          onGoChat={() => {}}
+          onGoOutline={() => goToOutline()}
+        />
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full min-w-0 max-w-3xl flex-1 flex-col p-2 sm:p-4">
+      <div className="mx-auto flex min-h-0 w-full min-w-0 max-w-3xl flex-1 flex-col overflow-x-hidden p-2 sm:p-4">
         <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-ta-border bg-ta-surface shadow-sm shadow-stone-200/50">
           <div className="shrink-0 border-b border-ta-border bg-ta-muted/40 px-3 py-2.5 text-left sm:px-4 sm:py-3">
             <p className="text-[10px] font-medium uppercase tracking-wider text-amber-700 sm:text-xs">

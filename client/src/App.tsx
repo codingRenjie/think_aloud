@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Home } from './components/Home'
 import { ChatSession } from './components/ChatSession'
 import { OutlineSession } from './components/OutlineSession'
@@ -27,6 +27,12 @@ export default function App() {
   const refreshList = () => setListVersion((n) => n + 1)
 
   const summaries = route.kind === 'home' ? listSessionSummaries() : []
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    document.documentElement.scrollLeft = 0
+    document.body.scrollLeft = 0
+  }, [route])
 
   return (
     <>
@@ -80,6 +86,14 @@ export default function App() {
           onBack={() => {
             setRoute({ kind: 'home' })
             refreshList()
+          }}
+          onGoChat={(session) => {
+            setRoute({
+              kind: 'chat',
+              topic: session.topic,
+              sessionId: session.id,
+              resume: session,
+            })
           }}
         />
       )}

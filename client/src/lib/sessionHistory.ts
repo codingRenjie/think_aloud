@@ -91,3 +91,8 @@ export function deleteSession(id: string): void {
   const { items } = readStore()
   writeStore(items.filter((i) => i.id !== id))
 }
+
+/** 是否已成功生成过胶囊大纲（至少进入过一次大纲页） */
+export function hasGeneratedOutline(session: { outlineMode: boolean }): boolean {
+  return session.outlineMode === true
+}

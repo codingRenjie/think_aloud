@@ -24,7 +24,7 @@ export function Home({
   }
 
   return (
-    <div className="relative mx-auto flex h-svh max-w-lg flex-col overflow-hidden bg-ta-bg text-ta-ink">
+    <div className="fixed inset-0 mx-auto flex w-full max-w-lg flex-col overflow-hidden bg-ta-bg text-ta-ink">
       {/* 上部约 2/3：鸭子欢迎区 */}
       <section className="relative flex min-h-0 flex-[2] flex-col overflow-hidden bg-ta-bg px-6 pt-6">
         <div className="relative z-20 shrink-0 font-bold leading-tight tracking-tight text-ta-green">

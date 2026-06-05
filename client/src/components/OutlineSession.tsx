@@ -2,44 +2,52 @@ import { useEffect, useState } from 'react'
 import type { Capsule } from '../lib/api'
 import { upsertSession, type SavedChatSession } from '../lib/sessionHistory'
 import { CapsuleBoard } from './CapsuleBoard'
+import { SessionPhaseNav } from './SessionPhaseNav'
 
 export function OutlineSession({
   session,
   onBack,
+  onGoChat,
 }: {
   session: SavedChatSession
   onBack: () => void
+  onGoChat: (session: SavedChatSession) => void
 }) {
   const [capsules, setCapsules] = useState<Capsule[]>(() =>
     session.capsules.map((c) => ({ ...c })),
   )
 
+  function buildSession(): SavedChatSession {
+    return {
+      ...session,
+      outlineMode: true,
+      capsules,
+      updatedAt: Date.now(),
+    }
+  }
+
   useEffect(() => {
     const t = window.setTimeout(() => {
-      upsertSession({
-        ...session,
-        outlineMode: true,
-        capsules,
-        updatedAt: Date.now(),
-      })
+      upsertSession(buildSession())
     }, 400)
     return () => clearTimeout(t)
   }, [session, capsules])
 
   function handleBack() {
-    upsertSession({
-      ...session,
-      outlineMode: true,
-      capsules,
-      updatedAt: Date.now(),
-    })
+    upsertSession(buildSession())
     onBack()
   }
 
+  function handleGoChat() {
+    const latest = buildSession()
+    upsertSession(latest)
+    onGoChat(latest)
+  }
+
   return (
-    <div className="flex h-svh min-w-0 flex-col overflow-hidden bg-ta-bg text-ta-ink">
-      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-ta-border bg-ta-bg/95 px-3 py-2.5 backdrop-blur sm:px-4 sm:py-3">
-        <div className="min-w-0 text-left">
+    <div className="fixed inset-0 flex min-w-0 flex-col overflow-hidden bg-ta-bg text-ta-ink">
+      <header className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-ta-border bg-ta-bg/95 px-3 py-2.5 backdrop-blur sm:flex-nowrap sm:px-4 sm:py-3">
+        <div className="min-w-0 flex-1 text-left">
           <button
             type="button"
             onClick={handleBack}
@@ -51,13 +59,15 @@ export function OutlineSession({
             大纲会保存在本机，下次可从首页继续
           </p>
         </div>
-        <div className="shrink-0 rounded-full border border-ta-border bg-ta-surface px-2.5 py-1 text-xs shadow-sm shadow-stone-200/50 sm:px-3">
-          <span className="font-semibold text-stone-800">整理大纲</span>
-          <span className="hidden text-ta-ink-muted sm:inline"> · 拖动胶囊排序</span>
-        </div>
+        <SessionPhaseNav
+          active="outline"
+          outlineAvailable
+          onGoChat={handleGoChat}
+          onGoOutline={() => {}}
+        />
       </header>
 
-      <div className="mx-auto min-h-0 w-full max-w-3xl flex-1 overflow-y-auto overscroll-y-contain touch-pan-y p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
+      <div className="mx-auto min-h-0 w-full min-w-0 max-w-3xl flex-1 overflow-x-hidden overflow-y-auto overscroll-y-auto touch-pan-y p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
         <CapsuleBoard topic={session.topic} capsules={capsules} onChange={setCapsules} />
       </div>
     </div>

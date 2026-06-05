@@ -20,6 +20,8 @@
   --color-ta-border: #e5e2d4;
   --color-ta-orange: #f7941d;
   --color-ta-orange-hover: #e88510;
+  --color-ta-orange-soft: #fde5c4;
+  --color-ta-orange-pale: #fff6ea;
   --color-ta-green: #1f6b42;
   --color-ta-green-soft: #e8f5ec;
   --color-ta-ink: #1c1917;
@@ -30,14 +32,38 @@
   --color-ta-accent-hover: #e88510;
 }
 
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   min-height: 100svh;
+  overflow: hidden;
+  overscroll-behavior: none;
   background-color: var(--color-ta-bg);
   color: var(--color-ta-ink);
   font-family: var(--font-sans);
 }
 
 #root {
-  min-height: 100svh;
+  width: 100%;
+  max-width: 100%;
+  height: 100svh;
+  overflow: hidden;
+}
+
+/* iOS Safari：小于 16px 的 input 聚焦时会自动缩放页面，导致布局撑宽 */
+@media (max-width: 639px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
