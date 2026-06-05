@@ -6,6 +6,88 @@ import { stripLeadingSuggestMeta } from '../lib/stripSuggestMeta'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import { SessionPhaseNav } from './SessionPhaseNav'
 
+type ChatPhase = 'diverge' | 'focus'
+
+function getChatPhase(awaitingFocusPick: boolean, focusChosen: boolean): ChatPhase {
+  if (awaitingFocusPick || focusChosen) return 'focus'
+  return 'diverge'
+}
+
+/** 已展示重点列表、可进入大纲（含旧会话 focusChosen） */
+function canOutlineFromChat(awaitingFocusPick: boolean, focusChosen: boolean): boolean {
+  return awaitingFocusPick || focusChosen
+}
+
+const PHASE_STEPS = ['发散聊聊', '梳理重点', '整理大纲'] as const
+
+function ChatPhaseGuide({ phase }: { phase: ChatPhase }) {
+  const activeIndex = phase === 'diverge' ? 0 : phase === 'focus' ? 1 : 2
+  return (
+    <div
+      className="flex items-center gap-1 border-b border-ta-border bg-ta-bg/60 px-3 py-2.5 sm:gap-1.5 sm:px-4"
+      aria-label="聊天阶段"
+    >
+      {PHASE_STEPS.map((label, i) => {
+        const done = i < activeIndex
+        const current = i === activeIndex
+        return (
+          <div key={label} className="flex min-w-0 flex-1 items-center gap-1">
+            {i > 0 ? (
+              <span
+                className={`hidden h-px flex-1 sm:block ${done ? 'bg-ta-green/50' : 'bg-ta-border'}`}
+                aria-hidden
+              />
+            ) : null}
+            <span
+              className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:text-[11px] ${
+                current
+                  ? 'bg-ta-green-soft text-ta-green'
+                  : done
+                    ? 'text-ta-green'
+                    : 'text-ta-ink-muted'
+              }`}
+            >
+              <span
+                className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold tabular-nums ${
+                  current
+                    ? 'bg-ta-green text-white'
+                    : done
+                      ? 'bg-ta-green/15 text-ta-green'
+                      : 'bg-ta-muted text-stone-400'
+                }`}
+              >
+                {done ? '✓' : i + 1}
+              </span>
+              <span className="truncate">{label}</span>
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function phaseHint(
+  phase: ChatPhase,
+  showSuggestCta: boolean,
+  canManualFocus: boolean,
+  chosenFocus?: string,
+): string | null {
+  if (phase === 'focus') {
+    if (chosenFocus) {
+      return '已记下你选的要点；有遗漏可补充，够了就点「整理大纲」。'
+    }
+    return '看看上面的要点列表；有遗漏就补充，够了可以直接整理大纲。'
+  }
+  if (showSuggestCta) {
+    return '伙伴觉得素材够丰富了，可以先梳理重点啦。'
+  }
+  if (canManualFocus) {
+    return '想到什么就说什么；觉得聊够了，再梳理重点。'
+  }
+  return null
+}
+
 export function ChatSession({
   topic,
   sessionId,
@@ -26,7 +108,7 @@ export function ChatSession({
   const [awaitingFocusPick, setAwaitingFocusPick] = useState(
     () => resumeFrom?.awaitingFocusPick ?? false,
   )
-  const [focusChosen, setFocusChosen] = useState(() => resumeFrom?.focusChosen ?? false)
+  const [focusChosen] = useState(() => resumeFrom?.focusChosen ?? false)
   const [chosenFocus, setChosenFocus] = useState<string | undefined>(() => resumeFrom?.chosenFocus)
   const [outlineGenerated, setOutlineGenerated] = useState(() => resumeFrom?.outlineMode ?? false)
   const [savedCapsules, setSavedCapsules] = useState<Capsule[]>(
@@ -141,7 +223,7 @@ export function ChatSession({
   const userTurnCount = messages.filter((m) => m.role === 'user').length
 
   async function triggerFocusPrompt() {
-    if (loading || focusChosen || awaitingFocusPick) return
+    if (loading || awaitingFocusPick) return
     const u: ChatMessage = { role: 'user', content: '聊够了，请帮我梳理写作重点。' }
     const hist = [...messages, u]
     setMessages([...hist, { role: 'assistant', content: '' }])
@@ -213,9 +295,10 @@ export function ChatSession({
     setInput('')
 
     const mentionsOutline = text.includes('整理大纲')
+    const outlineReady = canOutlineFromChat(awaitingFocusPick, focusChosen)
 
-    if (mentionsOutline && !focusChosen) {
-      setError('请先用编号多选想写的重点并完成伙伴的确认，再整理大纲哦。')
+    if (mentionsOutline && !outlineReady) {
+      setError('请先梳理重点，再整理大纲哦。')
       return
     }
 
@@ -223,19 +306,25 @@ export function ChatSession({
     let hist = [...messages, u]
     setMessages(hist)
 
-    if (mentionsOutline && focusChosen) {
+    if (mentionsOutline && outlineReady) {
       await loadCapsules(hist)
       return
     }
 
     if (awaitingFocusPick) {
-      const focusStage = looksLikeFocusSelection(text) ? 'focus_confirm' : 'focus_prompt'
+      if (looksLikeFocusSelection(text)) {
+        setChosenFocus(text)
+        setError(null)
+        return
+      }
+
+      setChosenFocus(undefined)
       setMessages([...hist, { role: 'assistant', content: '' }])
       setLoading(true)
       setError(null)
       try {
         await postChatStream(
-          { topic, stage: focusStage, messages: hist },
+          { topic, stage: 'focus_prompt', messages: hist },
           (t) => {
             setMessages((prev) => {
               const copy = [...prev]
@@ -257,19 +346,8 @@ export function ChatSession({
             })
           },
         )
-        if (focusStage === 'focus_confirm') {
-          setAwaitingFocusPick(false)
-          setFocusChosen(true)
-          setChosenFocus(text)
-        }
       } catch (e) {
-        setError(
-          e instanceof Error
-            ? e.message
-            : focusStage === 'focus_confirm'
-              ? '确认失败'
-              : '更新重点列表失败',
-        )
+        setError(e instanceof Error ? e.message : '更新重点列表失败')
         setMessages((prev) => prev.slice(0, -2))
       } finally {
         setLoading(false)
@@ -332,8 +410,23 @@ export function ChatSession({
     onEnterOutline(session)
   }
 
-  const showSuggestCta = suggestConverge && !awaitingFocusPick && !focusChosen
-  const canManualFocus = userTurnCount >= 2 && !awaitingFocusPick && !focusChosen
+  const outlineReady = canOutlineFromChat(awaitingFocusPick, focusChosen)
+  const showSuggestCta = suggestConverge && !outlineReady
+  const canManualFocus = userTurnCount >= 2 && !outlineReady
+  const chatPhase = getChatPhase(awaitingFocusPick, focusChosen)
+  const hint = phaseHint(chatPhase, showSuggestCta, canManualFocus, chosenFocus)
+
+  const primaryCta = outlineReady
+    ? {
+        label: loading ? '正在生成大纲…' : '整理大纲',
+        onClick: () => void loadCapsules(messages),
+        style: 'outline' as const,
+      }
+    : showSuggestCta
+      ? { label: '好，梳理重点', onClick: () => void triggerFocusPrompt(), style: 'primary' as const }
+      : null
+
+  const showManualFocusLink = canManualFocus && !showSuggestCta
 
   return (
     <div className="fixed inset-0 flex min-w-0 flex-col overflow-hidden bg-ta-bg text-ta-ink">
@@ -368,6 +461,8 @@ export function ChatSession({
               {topic}
             </p>
           </div>
+
+          <ChatPhaseGuide phase={chatPhase} />
 
           <div className="flex min-h-0 flex-1 flex-col">
             <div
@@ -405,38 +500,38 @@ export function ChatSession({
             </div>
 
             <div className="shrink-0 border-t border-ta-border bg-ta-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              {(showSuggestCta || canManualFocus || focusChosen) && (
-                <div className="mb-3 flex flex-col gap-2">
-                  {focusChosen ? (
-                    <button
-                      type="button"
-                      onClick={() => void loadCapsules(messages)}
-                      disabled={loading}
-                      className="min-h-[44px] w-full touch-manipulation rounded-xl border-2 border-amber-400 bg-amber-50 py-2.5 text-sm font-bold text-amber-900 disabled:opacity-50"
-                    >
-                      {loading ? '正在生成大纲…' : '整理大纲'}
-                    </button>
-                  ) : showSuggestCta ? (
-                    <button
-                      type="button"
-                      onClick={() => void triggerFocusPrompt()}
-                      disabled={loading}
-                      className="min-h-[44px] w-full touch-manipulation rounded-xl bg-amber-600 py-2.5 text-sm font-bold text-white shadow-sm shadow-amber-200/60 hover:bg-amber-500 disabled:opacity-50"
-                    >
-                      好，梳理重点
-                    </button>
-                  ) : canManualFocus ? (
-                    <button
-                      type="button"
-                      onClick={() => void triggerFocusPrompt()}
-                      disabled={loading}
-                      className="min-h-[44px] w-full touch-manipulation rounded-xl border border-ta-border bg-ta-muted py-2.5 text-sm font-semibold text-stone-800 disabled:opacity-50"
-                    >
-                      聊够了，梳理重点
-                    </button>
-                  ) : null}
-                </div>
-              )}
+              {hint ? (
+                <p className="mb-3 text-center text-xs leading-relaxed text-ta-ink-muted">{hint}</p>
+              ) : null}
+
+              {primaryCta ? (
+                <button
+                  type="button"
+                  onClick={primaryCta.onClick}
+                  disabled={loading}
+                  className={`font-playful mb-3 min-h-[48px] w-full touch-manipulation rounded-full py-3 text-base font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
+                    primaryCta.style === 'outline'
+                      ? 'bg-ta-orange text-white shadow-md shadow-ta-orange/25 hover:bg-ta-orange-hover'
+                      : 'bg-ta-green text-white shadow-sm shadow-ta-green/20 hover:opacity-95'
+                  }`}
+                >
+                  {primaryCta.label}
+                </button>
+              ) : null}
+
+              {showManualFocusLink ? (
+                <p className="mb-3 text-center text-xs text-ta-ink-muted">
+                  觉得聊够了？{' '}
+                  <button
+                    type="button"
+                    onClick={() => void triggerFocusPrompt()}
+                    disabled={loading}
+                    className="touch-manipulation font-medium text-ta-green underline-offset-2 hover:underline disabled:opacity-50"
+                  >
+                    梳理重点
+                  </button>
+                </p>
+              ) : null}
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <textarea
@@ -455,11 +550,11 @@ export function ChatSession({
                   }}
                   rows={2}
                   placeholder={
-                    awaitingFocusPick
-                      ? '有遗漏就先补充细节；没有则用编号多选，如 1、3'
+                    outlineReady
+                      ? '有遗漏就补充；也可以直接点「整理大纲」'
                       : '打字或先用语音…'
                   }
-                  className="min-h-[48px] w-full flex-1 resize-none rounded-xl border border-ta-border bg-ta-bg px-3 py-2.5 text-base text-stone-800 read-only:opacity-95 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 sm:text-sm"
+                  className="min-h-[48px] w-full flex-1 resize-none rounded-xl border border-ta-border bg-ta-bg px-3 py-2.5 text-base text-stone-800 read-only:opacity-95 focus:border-ta-green focus:outline-none focus:ring-2 focus:ring-ta-green/25 sm:text-sm"
                 />
                 <div className="flex shrink-0 gap-2 sm:w-auto">
                   {supported ? (
@@ -477,7 +572,7 @@ export function ChatSession({
                     type="button"
                     onClick={() => void sendFromInput()}
                     disabled={loading || listening || !displayInput.trim()}
-                    className="min-h-[44px] flex-1 touch-manipulation rounded-xl bg-ta-accent px-4 py-2.5 text-sm font-bold text-stone-900 hover:bg-ta-accent-hover disabled:opacity-40 sm:flex-none"
+                    className="min-h-[44px] flex-1 touch-manipulation rounded-full bg-ta-orange px-4 py-2.5 text-sm font-bold text-white hover:bg-ta-orange-hover disabled:opacity-40 sm:flex-none"
                   >
                     发送
                   </button>
