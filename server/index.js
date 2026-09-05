@@ -83,12 +83,48 @@ function pickLlmApiKey() {
 }
 
 const PORT = Number(process.env.PORT || 8787)
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 const BASE = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '')
 
-/** Moonshot 部分模型要求 temperature 必须为 1 */
+/** Moonshot 已于 2026-08-31 下线 moonshot-v1 / kimi-k2.5；旧 .env 仍可能写着这些名字 */
+const SUNSET_MODELS = {
+  'moonshot-v1-8k': 'kimi-k2.6',
+  'moonshot-v1-32k': 'kimi-k2.6',
+  'moonshot-v1-128k': 'kimi-k2.6',
+  'moonshot-v1-auto': 'kimi-k2.6',
+  'kimi-k2.5': 'kimi-k2.6',
+}
+
+function resolveChatModel(raw) {
+  const requested = String(raw || 'kimi-k2.6').trim() || 'kimi-k2.6'
+  const mapped = SUNSET_MODELS[requested]
+  if (mapped) {
+    console.warn(`[Think Aloud] 模型 ${requested} 已下线，改用 ${mapped}`)
+    return mapped
+  }
+  return requested
+}
+
+const MODEL = resolveChatModel(process.env.OPENAI_MODEL)
+
+/** kimi-k2.6 可关思考，避免短对话先空转「正在组织语言」 */
+function llmRequestExtras() {
+  if (/^kimi-k2\.6$/i.test(MODEL)) return { thinking: { type: 'disabled' } }
+  return {}
+}
+
+function pickLlmMessageText(message) {
+  if (!message || typeof message !== 'object') return ''
+  const content = message.content
+  if (typeof content === 'string' && content.trim()) return content
+  const reasoning = message.reasoning_content
+  if (typeof reasoning === 'string' && reasoning.trim()) return reasoning
+  return ''
+}
+
+/** kimi-k2.6 / k3 等只允许 temperature=0.6；旧 moonshot-v1 曾要求 1 */
 const IS_MOONSHOT_HOST = /moonshot\.(cn|ai)\b/i.test(BASE)
 const LLM_TEMPERATURE = (() => {
+  if (/^kimi-k(2\.6|2\.7|3)/i.test(MODEL)) return 0.6
   const raw = process.env.OPENAI_TEMPERATURE
   if (raw !== undefined && raw !== '') {
     const n = Number(raw)
@@ -119,7 +155,7 @@ if (!pickLlmApiKey()) {
   })
   console.log(`[Think Aloud] 已读取 LLM 密钥（来源变量：${which || '未知'}）`)
   console.log(
-    `[Think Aloud] 聊天优化：history≤${MAX_CHAT_MESSAGES} 条消息 max_tokens=${MAX_TOKENS_CHAT} 流式=${CHAT_STREAM_ENABLED ? '开' : '关'}`,
+    `[Think Aloud] 模型 ${MODEL}  ${BASE}  temperature=${LLM_TEMPERATURE}  history≤${MAX_CHAT_MESSAGES} 条消息 max_tokens=${MAX_TOKENS_CHAT} 流式=${CHAT_STREAM_ENABLED ? '开' : '关'}`,
   )
 }
 
@@ -234,6 +270,7 @@ async function chatCompletionSync({ system, messages }) {
     model: MODEL,
     temperature: LLM_TEMPERATURE,
     max_tokens: MAX_TOKENS_CHAT,
+    ...llmRequestExtras(),
     messages: [
       { role: 'system', content: system },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -252,7 +289,7 @@ async function chatCompletionSync({ system, messages }) {
     throw new Error(`OpenAI HTTP ${res.status}: ${t.slice(0, 500)}`)
   }
   const data = await res.json()
-  const raw = data.choices?.[0]?.message?.content
+  const raw = pickLlmMessageText(data.choices?.[0]?.message)
   if (!raw) throw new Error('OpenAI 空响应')
   return parseChatModelOutput(raw)
 }
@@ -265,6 +302,7 @@ async function jsonObjectCompletion({ system, userContent, maxTokens }) {
     temperature: LLM_TEMPERATURE,
     max_tokens: maxTokens,
     response_format: { type: 'json_object' },
+    ...llmRequestExtras(),
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: userContent },
@@ -283,7 +321,7 @@ async function jsonObjectCompletion({ system, userContent, maxTokens }) {
     throw new Error(`OpenAI HTTP ${res.status}: ${t.slice(0, 500)}`)
   }
   const data = await res.json()
-  const raw = data.choices?.[0]?.message?.content
+  const raw = pickLlmMessageText(data.choices?.[0]?.message)
   if (!raw) throw new Error('OpenAI 空响应')
   return JSON.parse(raw)
 }
@@ -322,6 +360,7 @@ async function streamChatToResponse({ system, messages, res, stage = 'diverge' }
     temperature: LLM_TEMPERATURE,
     max_tokens: MAX_TOKENS_CHAT,
     stream: true,
+    ...llmRequestExtras(),
     messages: [
       { role: 'system', content: system },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
